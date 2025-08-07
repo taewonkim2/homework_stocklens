@@ -1,0 +1,35 @@
+# ===================================================================
+# 안정적인 의존성 관리를 위해 각 패키지의 버전을 명시합니다.
+# 이 파일로 설치 후, 'pip freeze > requirements.lock' 명령어로
+# 실제 설치된 모든 패키지 버전을 저장해두는 것이 가장 좋습니다.
+# 최종 업데이트: 2025년 8월 6일
+# ===================================================================
+
+# 웹 프레임워크
+streamlit==1.37.0
+
+# 데이터 처리
+pandas==2.2.0
+
+# Google Cloud 및 AI 관련 라이브-러리
+google-cloud-vision==3.7.2
+google-generativeai==0.7.1
+
+# 기타 유틸리티
+python-dotenv==1.0.1
+Pillow==10.4.0
+
+# AI/ML 및 컴퓨터 비전
+ultralytics==8.2.2
+torch==2.3.1
+torchvision==0.18.1
+opencv-python-headless==4.10.0.82
+
+# 금융 데이터 및 시각화
+FinanceDataReader==0.9.50
+plotly==5.22.0
+
+# 유사도 측정
+python-Levenshtein==0.25.1
+thefuzz==0.22.1
+
