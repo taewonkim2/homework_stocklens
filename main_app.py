@@ -24,8 +24,8 @@ import plotly.express as px
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-@st.cache_resource
-def initialize_vision_client():
+@st.cache_resource                      # 함수를 App이 켜질 때 딱 한번만 수행하고 결과물은 계속 재사용하도록 캐싱
+def initialize_vision_client():         # GCP의 Vision API 클라이언트 초기화 함수
     try:
         credentials, project_id = google.auth.default(scopes=['https://www.googleapis.com/auth/cloud-vision'])
         vision_client = vision.ImageAnnotatorClient(credentials=credentials)
@@ -35,7 +35,7 @@ def initialize_vision_client():
         return None
 
 @st.cache_resource
-def initialize_gemini_model():
+def initialize_gemini_model():      # Gemini 모델 초기화 함수
     try:
         genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel('gemini-1.5-pro-latest')
@@ -44,6 +44,8 @@ def initialize_gemini_model():
         st.error(f"Gemini 모델 초기화 오류: {e}")
         return None
 
+# 실제로 vision API와 Gemini 모델을 초기화
+# 이 부분은 App이 시작될 때 한번만 실행되며, 이후에는 캐시된 결과를 사용합니다.
 vision_client = initialize_vision_client()
 gemini_model = initialize_gemini_model()
 
@@ -54,12 +56,14 @@ def analyze_image_with_vision_api(_vision_client, image_bytes: bytes) -> Dict[st
     # ... (기존과 동일) ...
     if not _vision_client: return {}
     image = vision.Image(content=image_bytes)
+    # Vision API에서 받아야 할 정보를 지정(아래 정보 외 얼굴,랜드마크, 유해콘텐츠 등 다양한 정보 를 받아올 수 있음)
     features = [
         vision.Feature(type_=vision.Feature.Type.LOGO_DETECTION),
         vision.Feature(type_=vision.Feature.Type.WEB_DETECTION),
         vision.Feature(type_=vision.Feature.Type.LABEL_DETECTION),
         vision.Feature(type_=vision.Feature.Type.TEXT_DETECTION),
     ]
+    # 요청하는 것을 vision API에 전달
     request = vision.AnnotateImageRequest(image=image, features=features)
     response = _vision_client.annotate_image(request=request)
     results = {}
@@ -80,7 +84,7 @@ def get_company_profile_with_gemini(_gemini_model, image_bytes: bytes, vision_re
 
     [분석 대상 정보]
     - 이미지: (첨부됨)
-    - 텍스트 힌트: {json.dumps(vision_results, ensure_ascii=False)}
+    - 텍스트 힌트: {json.dumps(vision_results, ensure_ascii=False)}   # 
 
     [매우 중요한 지시사항]
     - 만약 해당 브랜드가 특정 국가의 자회사(예: 한국 P&G, CJ LION)를 통해 유통되더라도, 주식 시장에 상장된 '글로벌 모회사(Parent Company)'를 기준으로 '제조사'와 '종목코드'를 찾아야 합니다.
@@ -106,6 +110,7 @@ def get_company_profile_with_gemini(_gemini_model, image_bytes: bytes, vision_re
     try:
         image_part = Image.open(io.BytesIO(image_bytes))
         response = _gemini_model.generate_content([prompt, image_part], request_options={"timeout": 120})
+        # JSON 응답에서 필요한 정보를 추출. 불필요한 말이나 상자 등의 기호가 오면 에러가 발생하므로 정리
         match = re.search(r"```json\s*(\{.*?\})\s*```", response.text, re.DOTALL)
         if match: return json.loads(match.group(1))
         else: return json.loads(response.text)
@@ -131,11 +136,15 @@ def plot_stock_chart(ticker: str) -> Optional[object]:
 # --- 4. Streamlit 웹 애플리케이션 UI 구성 (UI 수정) ---
 st.set_page_config(page_title="AI 기업/제품 분석기", layout="centered")
 
+# streamlit 세션 상태 초기
+# st.session_state는 Streamlit 앱의 '단기 기억 장치'입니다. 
+# if 'page' not 사용자가 탭을 처음 열었을 때 딱 한 번만 실행. 사용자의 첫 page를 'upload'로 설정
 if 'page' not in st.session_state: st.session_state.page = 'upload'
+# 이미지 소스와 프로필 정보도 세션 상태에 저장
 if 'image_source' not in st.session_state: st.session_state.image_source = None
 if 'profile_info' not in st.session_state: st.session_state.profile_info = None
 
-# --- 업로드 페이지 (기존과 동일) ---
+# --- 업로드 페이지 ---
 if st.session_state.page == 'upload':
     st.title("📸 AI 기업/제품 분석기")
     st.markdown("---")
@@ -166,8 +175,11 @@ elif st.session_state.page == 'results':
     st.markdown("---")
 
     if st.session_state.profile_info is None:
+        # spinner : 사용자가 기다리는 동안 로딩 중임을 표시
         with st.spinner('AI가 기업 프로필을 분석 중입니다...'):
+            # analyze_image_with_vision_api : Logo,label, OCR 등 Vision API 결과를 받아오기
             vision_results = analyze_image_with_vision_api(vision_client, st.session_state.image_source)
+            # get_company_profile_with_gemini : Gemini 모델을 통해 기업 프로필 생성
             st.session_state.profile_info = get_company_profile_with_gemini(gemini_model, st.session_state.image_source, vision_results)
 
     profile_info = st.session_state.profile_info
